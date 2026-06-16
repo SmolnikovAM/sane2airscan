@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   nixos-artifact:
@@ -43,9 +43,11 @@ jobs:
           set -euo pipefail
 
           mkdir -p dist
+          mkdir -p release
           store_path="$(readlink -f result)"
           binary_path="$store_path/bin/xerox-airscan-bridge"
           release_tag="${GITHUB_REF_NAME}"
+          artifact_name="xerox-airscan-bridge-${release_tag}-nixos-x86_64"
 
           nix-store -qR "$store_path" | sort -u > dist/nix-store-paths.txt
           printf '%s\n' "$binary_path" > dist/binary-path.txt
@@ -79,10 +81,35 @@ jobs:
           Prefer the repository NixOS module for permanent installation.
           EOF
 
+          mkdir -p "release/$artifact_name"
+          cp dist/* "release/$artifact_name/"
+          tar -C release -czf "release/$artifact_name.tar.gz" "$artifact_name"
+          sha256sum "release/$artifact_name.tar.gz" > "release/$artifact_name.tar.gz.sha256"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: xerox-airscan-bridge-nixos-x86_64-linux
-          path: dist/
+          path: release/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Xerox AirScan Bridge ${{ github.ref_name }}
+          body: |
+            NixOS x86_64 release build for `xerox-airscan-bridge`.
+
+            Download `xerox-airscan-bridge-${{ github.ref_name }}-nixos-x86_64.tar.gz`,
+            unpack it on a NixOS host, and follow `README-nixos-artifact.md`.
+
+            The binary reports:
+
+            ```text
+            xerox-airscan-bridge ${{ github.ref_name }}
+            ```
+          files: |
+            release/xerox-airscan-bridge-${{ github.ref_name }}-nixos-x86_64.tar.gz
+            release/xerox-airscan-bridge-${{ github.ref_name }}-nixos-x86_64.tar.gz.sha256

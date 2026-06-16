@@ -112,14 +112,19 @@ curl -fsS http://scanner-host.local:8081/eSCL/ScannerStatus
 
 Then open Image Capture and scan from the shared Xerox device.
 
-## GitHub Nix Artifact
+## GitHub Release Artifact
 
 The `Build Nix artifact` workflow runs only for pushed tags named `v*`, for
 example `v1.0.0`. It builds the package on `x86_64-linux`, passes the tag into
-the binary version, and uploads a Nix store closure artifact. After downloading
-and unpacking the workflow artifact on a NixOS host:
+the binary version, and creates a GitHub Release with a downloadable Nix store
+closure tarball.
+
+Download `xerox-airscan-bridge-<tag>-nixos-x86_64.tar.gz` from the release page,
+then unpack and import it on a NixOS host:
 
 ```bash
+tar -xzf xerox-airscan-bridge-v1.0.0-nixos-x86_64.tar.gz
+cd xerox-airscan-bridge-v1.0.0-nixos-x86_64
 xz -dc xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz | sudo nix-store --import
 binary_path="$(cat binary-path.txt)"
 "$binary_path" --help

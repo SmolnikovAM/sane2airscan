@@ -82,13 +82,18 @@ Leave `--sane-device` unset to prefer a local non-`net:` `xerox_mfp` device.
 ## Release Artifacts
 
 Release builds are tag-driven. Pushing a tag such as `v1.0.0` runs the GitHub
-Actions Nix build and passes that exact tag into the binary. The release binary
-must report the same value:
+Actions Nix build, passes that exact tag into the binary, and creates a GitHub
+Release with downloadable NixOS x86_64 assets. The release binary must report
+the same value:
 
 ```bash
 xerox-airscan-bridge --version
 # xerox-airscan-bridge v1.0.0
 ```
+
+No GitHub Packages registry entry is published. The repository already contains
+a Nix package under `packages/xerox-airscan-bridge`, and GitHub Releases are the
+download surface for built artifacts.
 
 ## NixOS Module
 
