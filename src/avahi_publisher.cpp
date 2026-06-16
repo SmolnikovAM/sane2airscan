@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <avahi-common/alternative.h>
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
 

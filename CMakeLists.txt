@@ -9,7 +9,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SANE REQUIRED IMPORTED_TARGET sane-backends)
 pkg_check_modules(AVAHI_CLIENT REQUIRED IMPORTED_TARGET avahi-client)
-pkg_check_modules(AVAHI_COMMON REQUIRED IMPORTED_TARGET avahi-common)
 pkg_check_modules(LIBJPEG REQUIRED IMPORTED_TARGET libjpeg)
 find_package(Threads REQUIRED)
 
@@ -27,7 +26,6 @@ target_include_directories(xerox-airscan-bridge PRIVATE
   include
   ${SANE_INCLUDE_DIRS}
   ${AVAHI_CLIENT_INCLUDE_DIRS}
-  ${AVAHI_COMMON_INCLUDE_DIRS}
   ${LIBJPEG_INCLUDE_DIRS}
 )
 
@@ -37,7 +35,6 @@ target_compile_options(xerox-airscan-bridge PRIVATE
   -Wpedantic
   ${SANE_CFLAGS_OTHER}
   ${AVAHI_CLIENT_CFLAGS_OTHER}
-  ${AVAHI_COMMON_CFLAGS_OTHER}
   ${LIBJPEG_CFLAGS_OTHER}
 )
 
@@ -45,7 +42,6 @@ target_link_libraries(xerox-airscan-bridge PRIVATE
   Threads::Threads
   PkgConfig::SANE
   PkgConfig::AVAHI_CLIENT
-  PkgConfig::AVAHI_COMMON
   PkgConfig::LIBJPEG
 )
 
