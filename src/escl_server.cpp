@@ -351,7 +351,11 @@ ScanSettings EsclServer::parse_scan_settings(const std::string &xml) const {
     settings.document_format = "image/jpeg";
   }
   if (auto input_source = xml_text(xml, "InputSource")) {
-    settings.input_source = *input_source == "Platen" ? "Platen" : *input_source;
+    if (*input_source != "Platen" && *input_source != "Flatbed") {
+      log(LogLevel::warn, "coercing unsupported eSCL InputSource=" +
+                              *input_source + " to Platen");
+    }
+    settings.input_source = "Platen";
   }
   const auto x_offset = xml_int(xml, "XOffset").value_or(0);
   const auto y_offset = xml_int(xml, "YOffset").value_or(0);
