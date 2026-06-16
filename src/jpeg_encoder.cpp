@@ -46,20 +46,25 @@ std::vector<std::uint8_t> encode_jpeg(const std::vector<std::uint8_t> &pixels,
   jerr.base.error_exit = jpeg_error_exit;
   volatile bool compressor_created = false;
 
+  // Declared before setjmp so the error path can release the mem-dest buffer
+  // (jpeg_mem_dest allocates it immediately). Its address escapes to
+  // jpeg_mem_dest, so the compiler keeps it in memory across the call.
+  unsigned char *out = nullptr;
+  unsigned long out_size = 0;
+
   if (setjmp(jerr.jump_target) != 0) {
     const std::string message = jerr.message[0] == '\0' ? "JPEG encoding failed"
                                                         : jerr.message;
     if (compressor_created) {
       jpeg_destroy_compress(&cinfo);
     }
+    std::free(out);
     throw std::runtime_error(message);
   }
 
   jpeg_create_compress(&cinfo);
   compressor_created = true;
 
-  unsigned char *out = nullptr;
-  unsigned long out_size = 0;
   jpeg_mem_dest(&cinfo, &out, &out_size);
 
   cinfo.image_width = static_cast<JDIMENSION>(width);
