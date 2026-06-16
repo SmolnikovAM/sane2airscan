@@ -1,0 +1,58 @@
+#include "xerox_airscan_bridge/jpeg_encoder.hpp"
+
+#include <cstdlib>
+#include <cstdio>
+#include <stdexcept>
+
+#include <jpeglib.h>
+
+namespace xab {
+
+std::vector<std::uint8_t> encode_jpeg(const std::vector<std::uint8_t> &pixels,
+                                      int width, int height,
+                                      PixelFormat format, int quality) {
+  if (width <= 0 || height <= 0) {
+    throw std::runtime_error("cannot encode JPEG with invalid dimensions");
+  }
+
+  const int components = format == PixelFormat::gray8 ? 1 : 3;
+  const std::size_t expected =
+      static_cast<std::size_t>(width) * static_cast<std::size_t>(height) *
+      static_cast<std::size_t>(components);
+  if (pixels.size() < expected) {
+    throw std::runtime_error("not enough pixel data for JPEG encoding");
+  }
+
+  jpeg_compress_struct cinfo{};
+  jpeg_error_mgr jerr{};
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_compress(&cinfo);
+
+  unsigned char *out = nullptr;
+  unsigned long out_size = 0;
+  jpeg_mem_dest(&cinfo, &out, &out_size);
+
+  cinfo.image_width = static_cast<JDIMENSION>(width);
+  cinfo.image_height = static_cast<JDIMENSION>(height);
+  cinfo.input_components = components;
+  cinfo.in_color_space = format == PixelFormat::gray8 ? JCS_GRAYSCALE : JCS_RGB;
+  jpeg_set_defaults(&cinfo);
+  jpeg_set_quality(&cinfo, quality, TRUE);
+  jpeg_start_compress(&cinfo, TRUE);
+
+  const int row_stride = width * components;
+  while (cinfo.next_scanline < cinfo.image_height) {
+    JSAMPROW row_pointer[1];
+    row_pointer[0] =
+        const_cast<JSAMPROW>(&pixels[cinfo.next_scanline * row_stride]);
+    jpeg_write_scanlines(&cinfo, row_pointer, 1);
+  }
+
+  jpeg_finish_compress(&cinfo);
+  std::vector<std::uint8_t> result(out, out + out_size);
+  jpeg_destroy_compress(&cinfo);
+  std::free(out);
+  return result;
+}
+
+} // namespace xab
