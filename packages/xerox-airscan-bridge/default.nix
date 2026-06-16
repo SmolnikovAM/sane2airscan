@@ -12,7 +12,7 @@ stdenv.mkDerivation {
   pname = "xerox-airscan-bridge";
   version = "0.1.0";
 
-  src = ../..;
+  src = lib.cleanSource ../..;
 
   nativeBuildInputs = [
     cmake

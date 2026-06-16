@@ -1,9 +1,12 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <cstddef>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -43,6 +46,10 @@ private:
   int server_fd_ = -1;
   std::atomic_bool running_{false};
   std::thread accept_thread_;
+  std::mutex clients_mutex_;
+  std::condition_variable clients_cv_;
+  std::size_t active_clients_ = 0;
+  std::size_t max_clients_ = 16;
 };
 
 } // namespace xab

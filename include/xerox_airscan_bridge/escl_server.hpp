@@ -4,6 +4,7 @@
 #include "xerox_airscan_bridge/http_server.hpp"
 #include "xerox_airscan_bridge/scanner.hpp"
 
+#include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -20,6 +21,7 @@ public:
   ~EsclServer();
 
   HttpResponse handle(const HttpRequest &request);
+  void stop();
 
   enum class JobState {
     pending,
@@ -38,6 +40,9 @@ private:
     std::optional<ScanImage> image;
     std::string error;
     bool delivered = false;
+    bool worker_done = false;
+    std::chrono::steady_clock::time_point updated_at =
+        std::chrono::steady_clock::now();
     std::thread worker;
     std::mutex mutex;
     std::condition_variable cv;
@@ -51,6 +56,7 @@ private:
   ScanSettings parse_scan_settings(const std::string &xml) const;
   void run_job(const std::shared_ptr<Job> &job);
   std::shared_ptr<Job> find_job(const std::string &job_id);
+  void reap_jobs();
 
   Config config_;
   Scanner &scanner_;

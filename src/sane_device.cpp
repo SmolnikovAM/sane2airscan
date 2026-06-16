@@ -108,8 +108,21 @@ std::string SaneDevice::resolve_device_name() const {
 
   for (int i = 0; devices != nullptr && devices[i] != nullptr; ++i) {
     const std::string name(devices[i]->name);
-    if (name.find("xerox_mfp:") != std::string::npos ||
-        name.find("xerox_mfp") == 0) {
+    const bool is_local = name.rfind("net:", 0) != 0;
+    const bool is_xerox = name.find("xerox_mfp") != std::string::npos;
+    if (is_local && is_xerox) {
+      return name;
+    }
+  }
+  for (int i = 0; devices != nullptr && devices[i] != nullptr; ++i) {
+    const std::string name(devices[i]->name);
+    if (name.find("xerox_mfp") != std::string::npos) {
+      return name;
+    }
+  }
+  for (int i = 0; devices != nullptr && devices[i] != nullptr; ++i) {
+    const std::string name(devices[i]->name);
+    if (name.rfind("net:", 0) != 0) {
       return name;
     }
   }
@@ -178,8 +191,13 @@ void SaneDevice::set_int_option(const std::string &name, int value) {
   if (!index) {
     return;
   }
+  const SANE_Option_Descriptor *descriptor =
+      sane_get_option_descriptor(handle_, *index);
+  if (descriptor == nullptr) {
+    return;
+  }
   SANE_Int info = 0;
-  SANE_Word word = value;
+  SANE_Word word = descriptor->type == SANE_TYPE_FIXED ? SANE_FIX(value) : value;
   const SANE_Status status =
       sane_control_option(handle_, *index, SANE_ACTION_SET_VALUE, &word, &info);
   if (status != SANE_STATUS_GOOD) {
@@ -228,16 +246,17 @@ void SaneDevice::set_mm_option(const std::string &name, double value) {
 
 void SaneDevice::apply_settings(const ScanSettings &settings) {
   set_int_option("resolution", settings.resolution);
-  set_string_option("source", "Flatbed");
+  set_string_option("source", settings.input_source == "Platen" ? "Flatbed"
+                                                                 : settings.input_source);
   if (settings.color_mode == ColorMode::color24) {
     set_string_option("mode", "Color");
   } else {
     set_string_option("mode", "Gray");
   }
-  set_mm_option("tl-x", 0.0);
-  set_mm_option("tl-y", 0.0);
-  set_mm_option("br-x", settings.width_mm);
-  set_mm_option("br-y", settings.height_mm);
+  set_mm_option("tl-x", settings.x_offset_mm);
+  set_mm_option("tl-y", settings.y_offset_mm);
+  set_mm_option("br-x", settings.x_offset_mm + settings.width_mm);
+  set_mm_option("br-y", settings.y_offset_mm + settings.height_mm);
 }
 
 ScanImage SaneDevice::scan(const ScanSettings &settings,

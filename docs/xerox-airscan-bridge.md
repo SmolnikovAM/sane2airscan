@@ -31,6 +31,7 @@ Import the module:
   services.xeroxAirscanBridge = {
     enable = true;
     deviceName = "Xerox WorkCentre 3119";
+    serialNumber = "XEROX3119";
     saneDevice = "xerox_mfp:libusb:001:010";
     listenAddress = "0.0.0.0";
     port = 8081;

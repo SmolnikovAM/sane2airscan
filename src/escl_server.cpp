@@ -6,6 +6,7 @@
 #include <regex>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -74,6 +75,17 @@ std::optional<int> xml_int(const std::string &xml, const std::string &name) {
   return std::nullopt;
 }
 
+double three_hundredths_to_mm(int value) {
+  return static_cast<double>(value) * 25.4 / 300.0;
+}
+
+std::string first_supported_format(const std::string &requested) {
+  if (requested == "image/jpeg" || requested == "image/jpg") {
+    return "image/jpeg";
+  }
+  return "image/jpeg";
+}
+
 std::string state_name(EsclServer::JobState state) {
   switch (state) {
   case EsclServer::JobState::pending:
@@ -90,17 +102,32 @@ std::string state_name(EsclServer::JobState state) {
   return "Unknown";
 }
 
+HttpResponse scanner_icon() {
+  static constexpr unsigned char png[] = {
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+      0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+      0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63,
+      0x60, 0x60, 0x60, 0xf8, 0xff, 0xff, 0x3f, 0x00, 0x05, 0xfe, 0x02,
+      0xfe, 0xdc, 0xcc, 0x59, 0xe7, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+      0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+  HttpResponse response;
+  response.headers["Content-Type"] = "image/png";
+  response.body.assign(reinterpret_cast<const char *>(png), sizeof(png));
+  return response;
+}
+
 } // namespace
 
 EsclServer::EsclServer(Config config, Scanner &scanner)
     : config_(std::move(config)), scanner_(scanner) {}
 
 EsclServer::~EsclServer() {
+  stop();
   std::vector<std::shared_ptr<Job>> jobs;
   {
     std::lock_guard lock(jobs_mutex_);
     for (auto &[_, job] : jobs_) {
-      job->cancel_requested.store(true);
       jobs.push_back(job);
     }
   }
@@ -111,13 +138,39 @@ EsclServer::~EsclServer() {
   }
 }
 
+void EsclServer::stop() {
+  std::vector<std::shared_ptr<Job>> jobs;
+  {
+    std::lock_guard lock(jobs_mutex_);
+    for (auto &[_, job] : jobs_) {
+      jobs.push_back(job);
+    }
+  }
+
+  for (auto &job : jobs) {
+    job->cancel_requested.store(true);
+    {
+      std::lock_guard lock(job->mutex);
+      if (job->state == JobState::pending || job->state == JobState::scanning) {
+        job->state = JobState::cancelled;
+      }
+      job->updated_at = std::chrono::steady_clock::now();
+    }
+    job->cv.notify_all();
+  }
+}
+
 HttpResponse EsclServer::handle(const HttpRequest &request) {
+  reap_jobs();
   log(LogLevel::info, "HTTP " + request.method + " " + request.path);
   if (request.method == "GET" && request.path == "/eSCL/ScannerCapabilities") {
     return capabilities();
   }
   if (request.method == "GET" && request.path == "/eSCL/ScannerStatus") {
     return status();
+  }
+  if (request.method == "GET" && request.path == "/eSCL/ScannerIcon") {
+    return scanner_icon();
   }
   if (request.method == "POST" && request.path == "/eSCL/ScanJobs") {
     return create_job(request);
@@ -139,22 +192,14 @@ HttpResponse EsclServer::capabilities() const {
   std::ostringstream xml;
   xml << R"(<?xml version="1.0" encoding="UTF-8"?>)"
       << R"(<scan:ScannerCapabilities xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">)"
-      << "<scan:Version>2.63</scan:Version>"
-      << "<scan:MakeAndModel>" << xml_escape(config_.device_name)
-      << "</scan:MakeAndModel>"
-      << "<scan:SerialNumber>" << xml_escape(config_.uuid)
-      << "</scan:SerialNumber>"
+      << "<pwg:Version>2.63</pwg:Version>"
+      << "<pwg:MakeAndModel>" << xml_escape(config_.manufacturer + " " + config_.model)
+      << "</pwg:MakeAndModel>"
+      << "<pwg:SerialNumber>" << xml_escape(config_.serial_number)
+      << "</pwg:SerialNumber>"
       << "<scan:UUID>urn:uuid:" << xml_escape(config_.uuid) << "</scan:UUID>"
       << "<scan:AdminURI>/</scan:AdminURI>"
       << "<scan:IconURI>/eSCL/ScannerIcon</scan:IconURI>"
-      << "<scan:SettingProfiles>"
-      << "<scan:SettingProfile><scan:ColorModes>"
-      << "<scan:ColorMode>Grayscale8</scan:ColorMode>"
-      << "<scan:ColorMode>RGB24</scan:ColorMode>"
-      << "</scan:ColorModes><scan:DocumentFormats>"
-      << "<pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>"
-      << "</scan:DocumentFormats></scan:SettingProfile>"
-      << "</scan:SettingProfiles>"
       << "<scan:Platen>"
       << "<scan:PlatenInputCaps>"
       << "<scan:MinWidth>1</scan:MinWidth><scan:MaxWidth>2480</scan:MaxWidth>"
@@ -204,14 +249,15 @@ HttpResponse EsclServer::status() const {
 
   std::ostringstream xml;
   xml << R"(<?xml version="1.0" encoding="UTF-8"?>)"
-      << R"(<scan:ScannerStatus xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03">)"
-      << "<scan:Version>2.63</scan:Version>"
-      << "<scan:State>" << (processing ? "Processing" : "Idle") << "</scan:State>"
+      << R"(<scan:ScannerStatus xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">)"
+      << "<pwg:Version>2.63</pwg:Version>"
+      << "<pwg:State>" << (processing ? "Processing" : "Idle") << "</pwg:State>"
       << "</scan:ScannerStatus>";
   return xml_response(xml.str());
 }
 
 HttpResponse EsclServer::create_job(const HttpRequest &request) {
+  reap_jobs();
   auto job = std::make_shared<Job>();
   job->settings = parse_scan_settings(request.body);
 
@@ -260,6 +306,7 @@ HttpResponse EsclServer::next_document(const std::string &job_id) {
   }
 
   job->delivered = true;
+  job->updated_at = std::chrono::steady_clock::now();
   HttpResponse response;
   response.status = 200;
   response.headers["Content-Type"] = job->image->content_type;
@@ -276,11 +323,14 @@ HttpResponse EsclServer::delete_job(const std::string &job_id) {
   job->cancel_requested.store(true);
   {
     std::lock_guard lock(job->mutex);
+    job->delivered = true;
     if (job->state == JobState::pending || job->state == JobState::scanning) {
       job->state = JobState::cancelled;
     }
+    job->updated_at = std::chrono::steady_clock::now();
   }
   job->cv.notify_all();
+  reap_jobs();
   return text_response(204, "");
 }
 
@@ -305,15 +355,30 @@ ScanSettings EsclServer::parse_scan_settings(const std::string &xml) const {
     }
   }
   if (auto format = xml_text(xml, "DocumentFormat")) {
-    settings.document_format = *format;
+    settings.document_format = first_supported_format(*format);
+  }
+  if (auto input_source = xml_text(xml, "InputSource")) {
+    settings.input_source = *input_source == "Platen" ? "Platen" : *input_source;
+  }
+  const auto x_offset = xml_int(xml, "XOffset").value_or(0);
+  const auto y_offset = xml_int(xml, "YOffset").value_or(0);
+  const auto width = xml_int(xml, "Width");
+  const auto height = xml_int(xml, "Height");
+  if (width && height && *width > 0 && *height > 0) {
+    settings.x_offset_mm = three_hundredths_to_mm(x_offset);
+    settings.y_offset_mm = three_hundredths_to_mm(y_offset);
+    settings.width_mm = three_hundredths_to_mm(*width);
+    settings.height_mm = three_hundredths_to_mm(*height);
   }
   return settings;
 }
 
 void EsclServer::run_job(const std::shared_ptr<Job> &job) {
+  JobState final_state = JobState::failed;
   {
     std::lock_guard lock(job->mutex);
     job->state = JobState::scanning;
+    job->updated_at = std::chrono::steady_clock::now();
   }
   job->cv.notify_all();
 
@@ -328,15 +393,21 @@ void EsclServer::run_job(const std::shared_ptr<Job> &job) {
       job->image = std::move(image);
       job->state = job->cancel_requested.load() ? JobState::cancelled
                                                 : JobState::complete;
+      job->worker_done = true;
+      job->updated_at = std::chrono::steady_clock::now();
+      final_state = job->state;
     }
   } catch (const std::exception &error) {
     std::lock_guard lock(job->mutex);
     job->error = error.what();
     job->state = job->cancel_requested.load() ? JobState::cancelled
                                               : JobState::failed;
+    job->worker_done = true;
+    job->updated_at = std::chrono::steady_clock::now();
+    final_state = job->state;
     log(LogLevel::error, "scan job " + job->id + " failed: " + job->error);
   }
-  log(LogLevel::info, "scan job " + job->id + " state=" + state_name(job->state));
+  log(LogLevel::info, "scan job " + job->id + " state=" + state_name(final_state));
   job->cv.notify_all();
 }
 
@@ -347,6 +418,39 @@ std::shared_ptr<EsclServer::Job> EsclServer::find_job(const std::string &job_id)
     return nullptr;
   }
   return it->second;
+}
+
+void EsclServer::reap_jobs() {
+  const auto now = std::chrono::steady_clock::now();
+  std::vector<std::shared_ptr<Job>> stale_jobs;
+  {
+    std::lock_guard lock(jobs_mutex_);
+    for (auto it = jobs_.begin(); it != jobs_.end();) {
+      auto &job = it->second;
+      bool stale = false;
+      {
+        std::lock_guard job_lock(job->mutex);
+        const bool terminal =
+            job->state == JobState::complete || job->state == JobState::failed ||
+            job->state == JobState::cancelled;
+        const bool old_enough = now - job->updated_at > std::chrono::minutes(10);
+        stale = terminal && job->worker_done && (job->delivered || old_enough);
+      }
+      if (stale) {
+        stale_jobs.push_back(job);
+        it = jobs_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  for (auto &job : stale_jobs) {
+    if (job->worker.joinable() &&
+        job->worker.get_id() != std::this_thread::get_id()) {
+      job->worker.join();
+    }
+  }
 }
 
 } // namespace xab

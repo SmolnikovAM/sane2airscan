@@ -79,6 +79,7 @@ int main(int argc, char **argv) {
     if (publisher) {
       publisher->stop();
     }
+    escl.stop();
     http.stop();
     xab::log(xab::LogLevel::info, "stopped");
     return 0;

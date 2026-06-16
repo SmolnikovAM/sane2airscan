@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <utility>
 #include <unistd.h>
 
@@ -170,6 +171,9 @@ void HttpServer::stop() {
   if (accept_thread_.joinable()) {
     accept_thread_.join();
   }
+
+  std::unique_lock lock(clients_mutex_);
+  clients_cv_.wait(lock, [this] { return active_clients_ == 0; });
 }
 
 void HttpServer::accept_loop() {
@@ -188,11 +192,31 @@ void HttpServer::accept_loop() {
       }
       continue;
     }
-    std::thread([this, client_fd] { handle_client(client_fd); }).detach();
+    {
+      std::lock_guard lock(clients_mutex_);
+      if (active_clients_ >= max_clients_) {
+        ::close(client_fd);
+        continue;
+      }
+      ++active_clients_;
+    }
+    std::thread([this, client_fd] {
+      handle_client(client_fd);
+      {
+        std::lock_guard lock(clients_mutex_);
+        --active_clients_;
+      }
+      clients_cv_.notify_all();
+    }).detach();
   }
 }
 
 void HttpServer::handle_client(int client_fd) {
+  timeval timeout{};
+  timeout.tv_sec = 15;
+  ::setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+  ::setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
   std::string data;
   std::array<char, 8192> buffer{};
 

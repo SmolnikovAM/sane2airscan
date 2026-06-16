@@ -37,6 +37,12 @@ in
       description = "Model name exposed by eSCL.";
     };
 
+    serialNumber = lib.mkOption {
+      type = lib.types.str;
+      default = "XEROX3119";
+      description = "Serial number exposed by eSCL.";
+    };
+
     saneDevice = lib.mkOption {
       type = lib.types.str;
       default = "";
@@ -113,6 +119,7 @@ in
           "--device-name" cfg.deviceName
           "--manufacturer" cfg.manufacturer
           "--model" cfg.model
+          "--serial-number" cfg.serialNumber
           "--listen-address" cfg.listenAddress
           "--port" (toString cfg.port)
           "--uuid" cfg.uuid

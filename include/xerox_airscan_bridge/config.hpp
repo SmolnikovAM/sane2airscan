@@ -11,6 +11,7 @@ struct Config {
   std::string device_name = "Xerox WorkCentre 3119";
   std::string manufacturer = "Xerox";
   std::string model = "WorkCentre 3119";
+  std::string serial_number = "XEROX3119";
   std::string sane_device;
   std::string listen_address = "0.0.0.0";
   std::uint16_t port = 8081;

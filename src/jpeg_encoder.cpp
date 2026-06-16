@@ -1,5 +1,6 @@
 #include "xerox_airscan_bridge/jpeg_encoder.hpp"
 
+#include <csetjmp>
 #include <cstdlib>
 #include <cstdio>
 #include <stdexcept>
@@ -7,6 +8,22 @@
 #include <jpeglib.h>
 
 namespace xab {
+
+namespace {
+
+struct JpegErrorManager {
+  jpeg_error_mgr base;
+  jmp_buf jump_target;
+  char message[JMSG_LENGTH_MAX]{};
+};
+
+void jpeg_error_exit(j_common_ptr cinfo) {
+  auto *error = reinterpret_cast<JpegErrorManager *>(cinfo->err);
+  (*cinfo->err->format_message)(cinfo, error->message);
+  longjmp(error->jump_target, 1);
+}
+
+} // namespace
 
 std::vector<std::uint8_t> encode_jpeg(const std::vector<std::uint8_t> &pixels,
                                       int width, int height,
@@ -24,12 +41,22 @@ std::vector<std::uint8_t> encode_jpeg(const std::vector<std::uint8_t> &pixels,
   }
 
   jpeg_compress_struct cinfo{};
-  jpeg_error_mgr jerr{};
-  cinfo.err = jpeg_std_error(&jerr);
+  JpegErrorManager jerr{};
+  cinfo.err = jpeg_std_error(&jerr.base);
+  jerr.base.error_exit = jpeg_error_exit;
   jpeg_create_compress(&cinfo);
 
   unsigned char *out = nullptr;
   unsigned long out_size = 0;
+
+  if (setjmp(jerr.jump_target) != 0) {
+    const std::string message = jerr.message[0] == '\0' ? "JPEG encoding failed"
+                                                        : jerr.message;
+    jpeg_destroy_compress(&cinfo);
+    std::free(out);
+    throw std::runtime_error(message);
+  }
+
   jpeg_mem_dest(&cinfo, &out, &out_size);
 
   cinfo.image_width = static_cast<JDIMENSION>(width);

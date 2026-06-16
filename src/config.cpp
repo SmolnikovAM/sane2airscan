@@ -46,6 +46,7 @@ void print_usage(const char *argv0) {
       << "  --device-name NAME       Bonjour/eSCL scanner name\n"
       << "  --manufacturer NAME      Scanner manufacturer\n"
       << "  --model NAME             Scanner model\n"
+      << "  --serial-number VALUE    Scanner serial number advertised over eSCL\n"
       << "  --sane-device NAME       Exact SANE device name; empty means auto-detect\n"
       << "  --listen-address ADDR    HTTP bind address (default: 0.0.0.0)\n"
       << "  --port PORT              HTTP/eSCL port (default: 8081)\n"
@@ -63,6 +64,7 @@ Config parse_config(int argc, char **argv) {
   config.device_name = env_or_default("XAB_DEVICE_NAME", config.device_name);
   config.manufacturer = env_or_default("XAB_MANUFACTURER", config.manufacturer);
   config.model = env_or_default("XAB_MODEL", config.model);
+  config.serial_number = env_or_default("XAB_SERIAL_NUMBER", config.serial_number);
   config.sane_device = env_or_default("XAB_SANE_DEVICE", config.sane_device);
   config.listen_address =
       env_or_default("XAB_LISTEN_ADDRESS", config.listen_address);
@@ -101,6 +103,8 @@ Config parse_config(int argc, char **argv) {
       config.manufacturer = need_value(arg);
     } else if (arg == "--model") {
       config.model = need_value(arg);
+    } else if (arg == "--serial-number") {
+      config.serial_number = need_value(arg);
     } else if (arg == "--sane-device") {
       config.sane_device = need_value(arg);
     } else if (arg == "--listen-address") {

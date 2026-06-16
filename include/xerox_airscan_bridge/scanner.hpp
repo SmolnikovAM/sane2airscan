@@ -15,8 +15,11 @@ enum class ColorMode {
 struct ScanSettings {
   int resolution = 300;
   ColorMode color_mode = ColorMode::grayscale8;
+  double x_offset_mm = 0.0;
+  double y_offset_mm = 0.0;
   double width_mm = 210.0;
   double height_mm = 297.0;
+  std::string input_source = "Platen";
   std::string document_format = "image/jpeg";
 };
 
