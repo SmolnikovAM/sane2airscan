@@ -148,6 +148,10 @@ Then open Image Capture and test a grayscale A4 scan at 300 DPI.
 - `docs/xerox-airscan-bridge.md`: operational notes and test checklist.
 - `docs/nixos-server-usage.md`: NixOS build, deployment, and artifact usage.
 
+## Acknowledgements
+
+Thanks to Codex and Claude for helping implement this idea.
+
 ## License
 
 MIT. See `LICENSE`.
