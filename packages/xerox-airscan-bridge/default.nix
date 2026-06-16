@@ -6,11 +6,12 @@
   sane-backends,
   avahi,
   libjpeg,
+  version ? "v1.0.0",
 }:
 
 stdenv.mkDerivation {
   pname = "xerox-airscan-bridge";
-  version = "0.1.0";
+  inherit version;
 
   src = lib.cleanSource ../..;
 
@@ -23,6 +24,10 @@ stdenv.mkDerivation {
     sane-backends
     avahi
     libjpeg
+  ];
+
+  cmakeFlags = [
+    "-DXAB_VERSION=${version}"
   ];
 
   meta = {

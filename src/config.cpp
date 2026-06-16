@@ -4,6 +4,10 @@
 #include <iostream>
 #include <stdexcept>
 
+#ifndef XAB_VERSION
+#define XAB_VERSION "v0.0.0"
+#endif
+
 namespace xab {
 
 namespace {
@@ -38,6 +42,14 @@ int parse_int(const std::string &text, const std::string &name) {
 
 } // namespace
 
+std::string application_version() {
+  return XAB_VERSION;
+}
+
+void print_version() {
+  std::cout << "xerox-airscan-bridge " << application_version() << '\n';
+}
+
 void print_usage(const char *argv0) {
   std::cerr
       << "Usage: " << argv0 << " [options]\n"
@@ -54,6 +66,7 @@ void print_usage(const char *argv0) {
       << "  --default-resolution DPI Default scan resolution\n"
       << "  --default-color-mode M   Grayscale8 or RGB24\n"
       << "  --no-mdns                Disable Avahi publication\n"
+      << "  --version                Show version\n"
       << "  --help                   Show this help\n"
       << "\n"
       << "Environment variables use XAB_ prefixes, for example XAB_SANE_DEVICE.\n";
@@ -96,6 +109,9 @@ Config parse_config(int argc, char **argv) {
 
     if (arg == "--help") {
       print_usage(argv[0]);
+      std::exit(0);
+    } else if (arg == "--version") {
+      print_version();
       std::exit(0);
     } else if (arg == "--device-name") {
       config.device_name = need_value(arg);

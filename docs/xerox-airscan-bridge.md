@@ -71,3 +71,12 @@ option mapping rather than duplicating HTTP or Bonjour code.
 
 Compatibility with macOS may still require adjusting the eSCL XML and Bonjour
 TXT records after testing against Image Capture.
+
+## Versioning
+
+Release artifacts are built from `v*` tags. The tag is passed into the build and
+is returned by:
+
+```bash
+xerox-airscan-bridge --version
+```

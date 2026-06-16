@@ -23,6 +23,7 @@ From a checkout on the NixOS host:
 ```bash
 nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/xerox-airscan-bridge {}'
 ./result/bin/xerox-airscan-bridge --help
+./result/bin/xerox-airscan-bridge --version
 ```
 
 ## Declarative Service
@@ -113,14 +114,16 @@ Then open Image Capture and scan from the shared Xerox device.
 
 ## GitHub Nix Artifact
 
-The `Build Nix artifact` workflow builds the package on `x86_64-linux` and
-uploads a Nix store closure artifact. After downloading and unpacking the
-workflow artifact on a NixOS host:
+The `Build Nix artifact` workflow runs only for pushed tags named `v*`, for
+example `v1.0.0`. It builds the package on `x86_64-linux`, passes the tag into
+the binary version, and uploads a Nix store closure artifact. After downloading
+and unpacking the workflow artifact on a NixOS host:
 
 ```bash
 xz -dc xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz | sudo nix-store --import
 binary_path="$(cat binary-path.txt)"
 "$binary_path" --help
+"$binary_path" --version
 ```
 
 The artifact is intended for quick testing. For a permanent installation,

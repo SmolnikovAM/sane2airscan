@@ -22,6 +22,8 @@ struct Config {
 };
 
 Config parse_config(int argc, char **argv);
+std::string application_version();
+void print_version();
 void print_usage(const char *argv0);
 
 } // namespace xab

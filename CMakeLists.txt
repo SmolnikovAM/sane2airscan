@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(xerox_airscan_bridge VERSION 0.1.0 LANGUAGES CXX)
+project(xerox_airscan_bridge VERSION 1.0.0 LANGUAGES CXX)
+
+set(XAB_VERSION "v${PROJECT_VERSION}" CACHE STRING "Version string reported by xerox-airscan-bridge")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +38,10 @@ target_compile_options(xerox-airscan-bridge PRIVATE
   ${SANE_CFLAGS_OTHER}
   ${AVAHI_CLIENT_CFLAGS_OTHER}
   ${LIBJPEG_CFLAGS_OTHER}
+)
+
+target_compile_definitions(xerox-airscan-bridge PRIVATE
+  XAB_VERSION="${XAB_VERSION}"
 )
 
 target_link_libraries(xerox-airscan-bridge PRIVATE

@@ -2,12 +2,8 @@ name: Build Nix artifact
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
-  pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,7 +25,18 @@ jobs:
       - name: Build package
         run: |
           set -euo pipefail
-          nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/xerox-airscan-bridge {}'
+          test "${GITHUB_REF_TYPE}" = "tag"
+          release_tag="${GITHUB_REF_NAME}"
+          case "$release_tag" in
+            v*) ;;
+            *) echo "release tag must start with v: $release_tag" >&2; exit 1 ;;
+          esac
+
+          RELEASE_TAG="$release_tag" \
+            nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/xerox-airscan-bridge { version = builtins.getEnv "RELEASE_TAG"; }'
+
+          reported_version="$(./result/bin/xerox-airscan-bridge --version)"
+          test "$reported_version" = "xerox-airscan-bridge $release_tag"
 
       - name: Export Nix store closure
         run: |
@@ -38,9 +45,11 @@ jobs:
           mkdir -p dist
           store_path="$(readlink -f result)"
           binary_path="$store_path/bin/xerox-airscan-bridge"
+          release_tag="${GITHUB_REF_NAME}"
 
           nix-store -qR "$store_path" | sort -u > dist/nix-store-paths.txt
           printf '%s\n' "$binary_path" > dist/binary-path.txt
+          printf '%s\n' "$release_tag" > dist/version.txt
 
           nix-store --export $(cat dist/nix-store-paths.txt) \
             | xz -T0 -9 \
@@ -50,6 +59,7 @@ jobs:
             dist/xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz \
             dist/nix-store-paths.txt \
             dist/binary-path.txt \
+            dist/version.txt \
             > dist/SHA256SUMS
 
           cat > dist/README-nixos-artifact.md <<'EOF'
@@ -63,6 +73,7 @@ jobs:
           xz -dc xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz | sudo nix-store --import
           binary_path="$(cat binary-path.txt)"
           "$binary_path" --help
+          "$binary_path" --version
           ```
 
           Prefer the repository NixOS module for permanent installation.

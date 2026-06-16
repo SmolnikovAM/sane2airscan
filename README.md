@@ -60,6 +60,7 @@ On NixOS:
 ```bash
 nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/xerox-airscan-bridge {}'
 ./result/bin/xerox-airscan-bridge --help
+./result/bin/xerox-airscan-bridge --version
 ```
 
 ## Run Manually
@@ -77,6 +78,17 @@ nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/xerox-airscan-bri
 ```
 
 Leave `--sane-device` unset to prefer a local non-`net:` `xerox_mfp` device.
+
+## Release Artifacts
+
+Release builds are tag-driven. Pushing a tag such as `v1.0.0` runs the GitHub
+Actions Nix build and passes that exact tag into the binary. The release binary
+must report the same value:
+
+```bash
+xerox-airscan-bridge --version
+# xerox-airscan-bridge v1.0.0
+```
 
 ## NixOS Module
 
