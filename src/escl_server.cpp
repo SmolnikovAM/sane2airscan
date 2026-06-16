@@ -228,15 +228,21 @@ HttpResponse EsclServer::capabilities() const {
 }
 
 HttpResponse EsclServer::status() const {
+  struct JobSnapshot {
+    std::string id;
+    JobState state;
+  };
+
   bool processing = false;
+  std::vector<JobSnapshot> jobs;
   {
     std::lock_guard lock(jobs_mutex_);
     for (const auto &[_, job] : jobs_) {
       std::lock_guard job_lock(job->mutex);
       if (job->state == JobState::pending || job->state == JobState::scanning) {
         processing = true;
-        break;
       }
+      jobs.push_back(JobSnapshot{job->id, job->state});
     }
   }
 
@@ -245,6 +251,18 @@ HttpResponse EsclServer::status() const {
       << R"(<scan:ScannerStatus xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">)"
       << "<pwg:Version>2.63</pwg:Version>"
       << "<pwg:State>" << (processing ? "Processing" : "Idle") << "</pwg:State>"
+      << "<pwg:StateReasons><pwg:StateReason>None</pwg:StateReason></pwg:StateReasons>"
+      << "<scan:Jobs>";
+  for (const auto &job : jobs) {
+    xml << "<scan:JobInfo>"
+        << "<pwg:JobUri>/eSCL/ScanJobs/" << xml_escape(job.id) << "</pwg:JobUri>"
+        << "<pwg:JobUuid>urn:uuid:" << xml_escape(config_.uuid) << "-"
+        << xml_escape(job.id) << "</pwg:JobUuid>"
+        << "<pwg:JobState>" << state_name(job.state) << "</pwg:JobState>"
+        << "<pwg:JobStateReasons><pwg:JobStateReason>None</pwg:JobStateReason></pwg:JobStateReasons>"
+        << "</scan:JobInfo>";
+  }
+  xml << "</scan:Jobs>"
       << "</scan:ScannerStatus>";
   return xml_response(xml.str());
 }
@@ -305,6 +323,7 @@ HttpResponse EsclServer::next_document(const std::string &job_id) {
   response.headers["Content-Type"] = job->image->content_type;
   response.body.assign(reinterpret_cast<const char *>(job->image->bytes.data()),
                        job->image->bytes.size());
+  job->image.reset();
   return response;
 }
 
@@ -316,7 +335,6 @@ HttpResponse EsclServer::delete_job(const std::string &job_id) {
   job->cancel_requested.store(true);
   {
     std::lock_guard lock(job->mutex);
-    job->delivered = true;
     if (job->state == JobState::pending || job->state == JobState::scanning) {
       job->state = JobState::cancelled;
     }
@@ -431,7 +449,7 @@ void EsclServer::reap_jobs() {
             job->state == JobState::complete || job->state == JobState::failed ||
             job->state == JobState::cancelled;
         const bool old_enough = now - job->updated_at > std::chrono::minutes(10);
-        stale = terminal && job->worker_done && (job->delivered || old_enough);
+        stale = terminal && job->worker_done && old_enough;
       }
       if (stale) {
         stale_jobs.push_back(job);
