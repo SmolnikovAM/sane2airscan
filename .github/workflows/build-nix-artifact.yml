@@ -84,7 +84,7 @@ jobs:
           mkdir -p "release/$artifact_name"
           cp dist/* "release/$artifact_name/"
           tar -C release -czf "release/$artifact_name.tar.gz" "$artifact_name"
-          sha256sum "release/$artifact_name.tar.gz" > "release/$artifact_name.tar.gz.sha256"
+          (cd release && sha256sum "$artifact_name.tar.gz" > "$artifact_name.tar.gz.sha256")
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

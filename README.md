@@ -95,6 +95,23 @@ No GitHub Packages registry entry is published. The repository already contains
 a Nix package under `packages/xerox-airscan-bridge`, and GitHub Releases are the
 download surface for built artifacts.
 
+To test a release artifact on NixOS, download
+`xerox-airscan-bridge-<tag>-nixos-x86_64.tar.gz` from the GitHub Release page
+and import its Nix store closure:
+
+```bash
+sha256sum -c xerox-airscan-bridge-v1.0.0-nixos-x86_64.tar.gz.sha256
+tar -xzf xerox-airscan-bridge-v1.0.0-nixos-x86_64.tar.gz
+cd xerox-airscan-bridge-v1.0.0-nixos-x86_64
+xz -dc xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz | sudo nix-store --import
+binary_path="$(cat binary-path.txt)"
+"$binary_path" --version
+```
+
+The artifact is useful for quick testing. For a permanent installation, prefer
+the NixOS module so the service, firewall, SANE, and Avahi settings are declared
+together.
+
 ## NixOS Module
 
 Import `modules/xerox-airscan-bridge.nix` and enable the service:
@@ -150,8 +167,7 @@ Then open Image Capture and test a grayscale A4 scan at 300 DPI.
 - `src/` and `include/`: C++ daemon implementation.
 - `packages/xerox-airscan-bridge/default.nix`: Nix package.
 - `modules/xerox-airscan-bridge.nix`: NixOS service module.
-- `docs/xerox-airscan-bridge.md`: operational notes and test checklist.
-- `docs/nixos-server-usage.md`: NixOS build, deployment, and artifact usage.
+- `docs/xerox-airscan-bridge.md`: technical notes and extension points.
 
 ## Acknowledgements
 

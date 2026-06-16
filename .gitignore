@@ -11,6 +11,7 @@ logs/
 issues.md
 .claude/
 .codex/
+.local-docs/
 
 # Platform/editor noise.
 .DS_Store
