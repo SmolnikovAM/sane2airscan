@@ -44,19 +44,22 @@ std::vector<std::uint8_t> encode_jpeg(const std::vector<std::uint8_t> &pixels,
   JpegErrorManager jerr{};
   cinfo.err = jpeg_std_error(&jerr.base);
   jerr.base.error_exit = jpeg_error_exit;
-  jpeg_create_compress(&cinfo);
-
-  unsigned char *out = nullptr;
-  unsigned long out_size = 0;
+  volatile bool compressor_created = false;
 
   if (setjmp(jerr.jump_target) != 0) {
     const std::string message = jerr.message[0] == '\0' ? "JPEG encoding failed"
                                                         : jerr.message;
-    jpeg_destroy_compress(&cinfo);
-    std::free(out);
+    if (compressor_created) {
+      jpeg_destroy_compress(&cinfo);
+    }
     throw std::runtime_error(message);
   }
 
+  jpeg_create_compress(&cinfo);
+  compressor_created = true;
+
+  unsigned char *out = nullptr;
+  unsigned long out_size = 0;
   jpeg_mem_dest(&cinfo, &out, &out_size);
 
   cinfo.image_width = static_cast<JDIMENSION>(width);
