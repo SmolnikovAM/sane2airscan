@@ -1,3 +1,16 @@
 build/
 result
 result-*
+
+# Local test output and release bundles.
+artifacts/
+logs/
+*.log
+
+# Private review notes and local tool state.
+issues.md
+.claude/
+.codex/
+
+# Platform/editor noise.
+.DS_Store

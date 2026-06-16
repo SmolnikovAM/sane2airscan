@@ -49,8 +49,8 @@ Leave `saneDevice = ""` to auto-detect the first `xerox_mfp` device.
 scanimage -L
 systemctl status xerox-airscan-bridge.service
 avahi-browse -rt _uscan._tcp
-curl http://macmini.local:8081/eSCL/ScannerCapabilities
-curl http://macmini.local:8081/eSCL/ScannerStatus
+curl http://scanner-host.local:8081/eSCL/ScannerCapabilities
+curl http://scanner-host.local:8081/eSCL/ScannerStatus
 ```
 
 ## macOS checks

@@ -1,0 +1,77 @@
+name: Build Nix artifact
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nixos-artifact:
+    name: Build x86_64-linux Nix closure
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build package
+        run: |
+          set -euo pipefail
+          nix-build -E 'with import <nixpkgs> {}; callPackage ./packages/xerox-airscan-bridge {}'
+
+      - name: Export Nix store closure
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+          store_path="$(readlink -f result)"
+          binary_path="$store_path/bin/xerox-airscan-bridge"
+
+          nix-store -qR "$store_path" | sort -u > dist/nix-store-paths.txt
+          printf '%s\n' "$binary_path" > dist/binary-path.txt
+
+          nix-store --export $(cat dist/nix-store-paths.txt) \
+            | xz -T0 -9 \
+            > dist/xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz
+
+          sha256sum \
+            dist/xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz \
+            dist/nix-store-paths.txt \
+            dist/binary-path.txt \
+            > dist/SHA256SUMS
+
+          cat > dist/README-nixos-artifact.md <<'EOF'
+          # Xerox AirScan Bridge NixOS Artifact
+
+          This artifact contains a Nix store closure for x86_64-linux.
+
+          Import it on a NixOS host:
+
+          ```bash
+          xz -dc xerox-airscan-bridge-x86_64-linux.nix-store-closure.nar.xz | sudo nix-store --import
+          binary_path="$(cat binary-path.txt)"
+          "$binary_path" --help
+          ```
+
+          Prefer the repository NixOS module for permanent installation.
+          EOF
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xerox-airscan-bridge-nixos-x86_64-linux
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
